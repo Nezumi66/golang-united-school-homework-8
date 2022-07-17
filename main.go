@@ -30,7 +30,12 @@ func Perform(args Arguments, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}(file)
 
 	data, err := ioutil.ReadAll(file)
 	if err != nil {
@@ -69,10 +74,16 @@ func Perform(args Arguments, writer io.Writer) error {
 			}
 		}
 		if foundId {
-			writer.Write([]byte(fmt.Sprintf("Item with id %s already exists", user.Id)))
+			_, err = writer.Write([]byte(fmt.Sprintf("Item with id %s already exists", user.Id)))
+			if err != nil {
+				return err
+			}
 		} else {
 			users = append(users, user)
-			WriteToFile(users, *file)
+			err = WriteToFile(users, *file)
+			if err != nil {
+				return err
+			}
 		}
 	case "remove":
 		if args["id"] == "" {
@@ -91,9 +102,15 @@ func Perform(args Arguments, writer io.Writer) error {
 		}
 
 		if foundId {
-			WriteToFile(newUsers, *file)
+			err = WriteToFile(newUsers, *file)
+			if err != nil {
+				return err
+			}
 		} else {
-			writer.Write([]byte(fmt.Sprintf("Item with id %s not found", args["id"])))
+			_, err = writer.Write([]byte(fmt.Sprintf("Item with id %s not found", args["id"])))
+			if err != nil {
+				return err
+			}
 		}
 
 	case "findById":
@@ -117,9 +134,15 @@ func Perform(args Arguments, writer io.Writer) error {
 				return err
 			}
 
-			writer.Write(userToWrite)
+			_, err = writer.Write(userToWrite)
+			if err != nil {
+				return err
+			}
 		} else {
-			writer.Write([]byte(""))
+			_, err = writer.Write([]byte(""))
+			if err != nil {
+				return err
+			}
 		}
 
 	default:
