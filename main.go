@@ -55,39 +55,73 @@ func Perform(args Arguments, writer io.Writer) error {
 			return fmt.Errorf("-item flag has to be specified")
 		}
 
-		if !json.Valid([]byte(args["item"])) {
-			return fmt.Errorf("incorrect format of an item")
-		}
-
 		var user User
 		err := json.Unmarshal([]byte(args["item"]), &user)
 		if err != nil {
 			return err
 		}
 
-		users = append(users, user)
+		foundId := false
 
-		_, err = file.Seek(0, 0)
-		if err != nil {
-			return err
+		for _, v := range users {
+			if v.Id == user.Id {
+				foundId = true
+			}
 		}
-		err = file.Truncate(0)
-		if err != nil {
-			return err
+		if foundId {
+			writer.Write([]byte(fmt.Sprintf("Item with id %s already exists", user.Id)))
+		} else {
+			users = append(users, user)
+			WriteToFile(users, *file)
 		}
-		usersToWrite, err := json.Marshal(users)
-		if err != nil {
-			return err
-		}
-		_, err = file.Write(usersToWrite)
 	case "remove":
 		if args["id"] == "" {
 			return fmt.Errorf("-id flag has to be specified")
 		}
+
+		foundId := false
+
+		var newUsers []User
+		for _, v := range users {
+			if args["id"] == v.Id {
+				foundId = true
+			} else {
+				newUsers = append(newUsers, v)
+			}
+		}
+
+		if foundId {
+			WriteToFile(newUsers, *file)
+		} else {
+			writer.Write([]byte(fmt.Sprintf("Item with id %s not found", args["id"])))
+		}
+
 	case "findById":
 		if args["id"] == "" {
 			return fmt.Errorf("-id flag has to be specified")
 		}
+
+		foundId := false
+		var foundUser User
+
+		for _, v := range users {
+			if args["id"] == v.Id {
+				foundId = true
+				foundUser = v
+			}
+		}
+
+		if foundId {
+			userToWrite, err := json.Marshal(foundUser)
+			if err != nil {
+				return err
+			}
+
+			writer.Write(userToWrite)
+		} else {
+			writer.Write([]byte(""))
+		}
+
 	default:
 		return fmt.Errorf("Operation %v not allowed!", args["operation"])
 	}
@@ -115,4 +149,28 @@ func parseArgs() Arguments {
 		"operation": *op,
 		"fileName":  *file,
 	}
+}
+
+func WriteToFile(users []User, file os.File) error {
+	_, err := file.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	err = file.Truncate(0)
+	if err != nil {
+		return err
+	}
+
+	usersToWrite, err := json.Marshal(users)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Write(usersToWrite)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
