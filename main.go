@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -24,16 +25,27 @@ func Perform(args Arguments, writer io.Writer) error {
 		return errors.New("-fileName flag has to be specified")
 	}
 
-	switch args["operation"] {
-	case "list":
-		data, err := ioutil.ReadFile(args["fileName"])
-		if len(data) == 0 {
-			break
-		}
+	var users []User
+	file, err := os.OpenFile(args["fileName"], os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return err
+	}
+
+	if len(data) != 0 {
+		err = json.Unmarshal(data, &users)
 		if err != nil {
 			return err
 		}
+	}
 
+	switch args["operation"] {
+	case "list":
 		_, err = writer.Write(data)
 		if err != nil {
 			return err
@@ -43,6 +55,31 @@ func Perform(args Arguments, writer io.Writer) error {
 			return fmt.Errorf("-item flag has to be specified")
 		}
 
+		if !json.Valid([]byte(args["item"])) {
+			return fmt.Errorf("incorrect format of an item")
+		}
+
+		var user User
+		err := json.Unmarshal([]byte(args["item"]), &user)
+		if err != nil {
+			return err
+		}
+
+		users = append(users, user)
+
+		_, err = file.Seek(0, 0)
+		if err != nil {
+			return err
+		}
+		err = file.Truncate(0)
+		if err != nil {
+			return err
+		}
+		usersToWrite, err := json.Marshal(users)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(usersToWrite)
 	case "remove":
 		if args["id"] == "" {
 			return fmt.Errorf("-id flag has to be specified")
